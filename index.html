@@ -8,8 +8,18 @@
 </head>
 <body>
     <h1>File Converter</h1>
+
+    <!-- Форма для загрузки файла -->
     <input type="file" id="fileInput" />
-    <button id="convertBtn">Convert</button>
+    <p id="fileInfo"></p>
+
+     <!-- Выпадающий список с вариантами форматов -->
+    <label for="convertTo">Конвертировать в:</label>
+    <select id="convertTo" disabled>
+        <option value="">Выберите формат</option>
+    </select>
+
+    <button id="convertBtn" disabled>Convert</button>
     <div id="output"></div>
 
     <!-- Firebase SDKs (подключаем через CDN) -->
@@ -33,21 +43,65 @@
         const storage = firebase.storage();
         const db = firebase.firestore();
 
-        // Логика конвертации и загрузки файлов
-        document.getElementById('convertBtn').addEventListener('click', function () {
-            const fileInput = document.getElementById('fileInput').files[0];
-            if (!fileInput) {
-                alert('Please select a file first');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const convertToSelect = document.getElementById('convertTo');
+        const convertBtn = document.getElementById('convertBtn');
+
+        // Определяем доступные форматы для конвертации
+        const imageFormats = ['JPG', 'PNG', 'GIF', 'BMP', 'WEBP'];
+        const textFormats = ['TXT', 'PDF', 'DOCX'];
+
+        fileInput.addEventListener('change', function() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const fileName = file.name;
+            const fileExtension = fileName.split('.').pop().toUpperCase();
+            fileInfo.textContent = `Конвертировать из: ${fileExtension}`;
+
+            // Определяем, что это за тип файла (например, изображение или текст)
+            let availableFormats = [];
+            if (imageFormats.includes(fileExtension)) {
+                availableFormats = imageFormats.filter(ext => ext !== fileExtension);
+            } else if (textFormats.includes(fileExtension)) {
+                availableFormats = textFormats.filter(ext => ext !== fileExtension);
+            } else {
+                fileInfo.textContent = `Неподдерживаемое расширение: ${fileExtension}`;
+                convertToSelect.disabled = true;
+                convertBtn.disabled = true;
                 return;
             }
 
-            // Загрузка файла в Firebase Storage
-            const storageRef = storage.ref(`uploads/${fileInput.name}`);
-            const uploadTask = storageRef.put(fileInput);
+            // Очищаем и заполняем select с доступными форматами
+            convertToSelect.innerHTML = '<option value="">Выберите формат</option>';
+            availableFormats.forEach(format => {
+                const option = document.createElement('option');
+                option.value = format;
+                option.textContent = format;
+                convertToSelect.appendChild(option);
+            });
+
+            convertToSelect.disabled = false;
+            convertBtn.disabled = false;
+        });
+
+        // Логика конвертации
+        convertBtn.addEventListener('click', function () {
+            const file = fileInput.files[0];
+            const selectedFormat = convertToSelect.value;
+            if (!file || !selectedFormat) {
+                alert('Выберите файл и формат для конвертации!');
+                return;
+            }
+
+            // Здесь можно добавить логику для конвертации (используя библиотеку для работы с изображениями или текстом)
+            // Пока что просто загрузим файл в Firebase без конвертации
+            const storageRef = storage.ref(`uploads/${file.name}`);
+            const uploadTask = storageRef.put(file);
 
             uploadTask.on('state_changed',
                 function(snapshot) {
-                    // Отслеживание состояния загрузки
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                     console.log('Upload is ' + progress + '% done');
                 },
@@ -55,17 +109,33 @@
                     console.log('Error uploading file:', error);
                 },
                 function() {
-                    // Успешная загрузка
                     uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
                         console.log('File available at', downloadURL);
-                        document.getElementById('output').innerHTML = `<a href="${downloadURL}" target="_blank">Download Converted File</a>`;
 
-                        // Сохранение ссылки в Firestore
+                        // Добавляем информацию о файле в базу данных
                         db.collection('convertedFiles').add({
-                            fileName: fileInput.name,
+                            fileName: file.name,
                             downloadURL: downloadURL,
                             timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         });
+
+                        // Логируем начало процесса скачивания
+                        console.log('Начало скачивания файла...');
+
+                        // Создаем ссылку для скачивания
+                        const link = document.createElement('a');
+                        link.href = downloadURL;
+                        link.download = file.name; // Задаем имя скачиваемого файла
+                        document.body.appendChild(link);
+
+                        // Программное нажатие на ссылку для скачивания
+                      //  link.click();
+
+                        // Логируем успешное скачивание файла
+                      //  console.log('Файл успешно скачан!');
+
+                        // Удаляем ссылку после скачивания
+                     //   document.body.removeChild(link);
                     });
                 }
             );
