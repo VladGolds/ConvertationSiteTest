@@ -12,12 +12,64 @@
     <button id="convertBtn">Convert</button>
     <div id="output"></div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-storage.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js"></script>
+    <!-- Firebase SDKs (подключаем через CDN) -->
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-storage-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore-compat.js"></script>
 
-    <!-- Подключение JS -->
-    <script src="app.js"></script>
+    <script>
+        // Инициализация Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCsk6CNDHMBKFTN5xYngxewYmeBgovhFHE",
+            authDomain: "convertation-93b17.firebaseapp.com",
+            projectId: "convertation-93b17",
+            storageBucket: "convertation-93b17.appspot.com",
+            messagingSenderId: "1035022201443",
+            appId: "1:1035022201443:web:3565c42d45f94d4c5cfe56"
+        };
+
+        // Инициализируем Firebase с использованием совместимого режима (compat)
+        firebase.initializeApp(firebaseConfig);
+        const storage = firebase.storage();
+        const db = firebase.firestore();
+
+        // Логика конвертации и загрузки файлов
+        document.getElementById('convertBtn').addEventListener('click', function () {
+            const fileInput = document.getElementById('fileInput').files[0];
+            if (!fileInput) {
+                alert('Please select a file first');
+                return;
+            }
+
+            // Загрузка файла в Firebase Storage
+            const storageRef = storage.ref(`uploads/${fileInput.name}`);
+            const uploadTask = storageRef.put(fileInput);
+
+            uploadTask.on('state_changed',
+                function(snapshot) {
+                    // Отслеживание состояния загрузки
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log('Upload is ' + progress + '% done');
+                },
+                function(error) {
+                    console.log('Error uploading file:', error);
+                },
+                function() {
+                    // Успешная загрузка
+                    uploadTask.snapshot.ref.getDownloadURL().then(function(downloadURL) {
+                        console.log('File available at', downloadURL);
+                        document.getElementById('output').innerHTML = `<a href="${downloadURL}" target="_blank">Download Converted File</a>`;
+
+                        // Сохранение ссылки в Firestore
+                        db.collection('convertedFiles').add({
+                            fileName: fileInput.name,
+                            downloadURL: downloadURL,
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    });
+                }
+            );
+        });
+</script>
 </body>
 </html>
